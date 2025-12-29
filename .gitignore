@@ -1,0 +1,52 @@
+# ==========================
+# GLOBAL (All Projects)
+# ==========================
+.DS_Store
+Thumbs.db
+.env
+.env.local
+.env.*.local
+*.log
+
+# ==========================
+# NODE.JS (Frontend & Worker)
+# ==========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================
+# LARAVEL (Backend)
+# ==========================
+/backend/vendor/
+/backend/node_modules/
+/backend/public/build/
+/backend/public/hot
+/backend/public/storage
+/backend/storage/*.key
+/backend/storage/framework/cache/data/*
+/backend/storage/framework/sessions/*
+/backend/storage/framework/testing/*
+/backend/storage/framework/views/*
+/backend/storage/logs/*
+/backend/.phpunit.result.cache
+/backend/.env
+/backend/.env.backup
+/backend/.env.production
+/backend/bootstrap/cache/*
+
+# ==========================
+# REACT / VITE (Frontend)
+# ==========================
+/frontend/dist/
+/frontend/build/
+/frontend/.eslintcache
+
+# ==========================
+# IDE / EDITORS
+# ==========================
+.vscode/
+.idea/
+*.swp
