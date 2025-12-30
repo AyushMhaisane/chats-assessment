@@ -1,112 +1,156 @@
-const puppeteer = require('puppeteer');
-const axios = require('axios');
-const cheerio = require('cheerio');
+const puppeteer = require("puppeteer");
+const cheerio = require("cheerio");
+const axios = require("axios");
 
-const SOURCE_URL = 'https://beyondchats.com/blogs/';
-const API_URL = 'http://localhost:5000/api/articles';
+const SOURCE_URL = "https://beyondchats.com/blogs/";
+const API_URL = "http://localhost:5000/api/articles";
 
-async function scrapeOldest() {
-    console.log("🚀 Starting Scraper (Strict Mode)...");
-    
+async function scrapeOldestArticles()
+{
+    console.log("\n================ SCRAPER STARTED ================\n");
+
     const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
-    
-    let collectedArticles = [];
-    let seenTitles = new Set(); 
+    console.log("[INFO] Browser launched");
 
-    try {
-        await page.goto(SOURCE_URL, { waitUntil: 'networkidle2' });
-        
-        let currentPageUrl = await page.evaluate(() => {
-            const paginationLinks = Array.from(document.querySelectorAll('.page-numbers'));
-            const lastNumLink = paginationLinks.filter(el => !isNaN(el.innerText)).pop(); 
-            return lastNumLink ? lastNumLink.href : null;
+    const page = await browser.newPage();
+    console.log("[INFO] New browser tab opened");
+
+    const collectedArticles = [];
+    const visitedTitles = new Set();
+
+    try
+    {
+        console.log("[STEP 1] Opening blog homepage");
+        await page.goto(SOURCE_URL, { waitUntil: "networkidle2" });
+        console.log("[SUCCESS] Blog homepage loaded");
+
+        console.log("[STEP 2] Detecting last pagination page");
+        let currentPageUrl = await page.evaluate(() =>
+        {
+            const pages = Array.from(document.querySelectorAll(".page-numbers"));
+            const numericPages = pages.filter(p => !isNaN(p.innerText));
+
+            return numericPages.length
+                ? numericPages[numericPages.length - 1].href
+                : null;
         });
 
-        if (!currentPageUrl) currentPageUrl = SOURCE_URL;
-
-        // Loop backwards
-        while (collectedArticles.length < 5 && currentPageUrl) {
-            
-            console.log(`\n🕵️ Scraping Page: ${currentPageUrl}`);
-            await page.goto(currentPageUrl, { waitUntil: 'networkidle2' });
-
-            const content = await page.content();
-            const $ = cheerio.load(content);
-            
-            const articlesOnThisPage = [];
-
-            // STRICTER SELECTOR: Only look for <article> tags or divs that act as wrappers
-            // If <article> doesn't work, we can revert to a specific class if you find one.
-            // But usually <article> excludes sidebars.
-            const cardSelector = $('article').length > 0 ? 'article' : '.blog-card, .post, .entry';
-
-            $(cardSelector).each((i, el) => {
-                // STRICTER TITLE: Only look for H2 (Main titles)
-                const title = $(el).find('h2').first().text().trim();
-                const link = $(el).find('a').attr('href');
-                
-                if (title && link && title.split(' ').length > 2) { 
-                    const fullLink = link.startsWith('http') ? link : `https://beyondchats.com${link}`;
-                    
-                    if (!seenTitles.has(title)) {
-                        seenTitles.add(title);
-                        articlesOnThisPage.push({ title, url: fullLink });
-                    }
-                }
-            });
-
-            // Reverse to get bottom-most (oldest) first
-            articlesOnThisPage.reverse();
-
-            console.log(`   -> Found ${articlesOnThisPage.length} articles on this page.`);
-            collectedArticles = [...collectedArticles, ...articlesOnThisPage];
-
-            if (collectedArticles.length < 5) {
-                // Pagination Logic (Page 15 -> 14)
-                const match = currentPageUrl.match(/\/page\/(\d+)\/?/);
-                if (match) {
-                    const currentPageNum = parseInt(match[1]);
-                    if (currentPageNum > 1) {
-                        currentPageUrl = currentPageUrl.replace(`/page/${currentPageNum}`, `/page/${currentPageNum - 1}`);
-                    } else { break; }
-                } else { break; }
-            } else { break; }
+        if (!currentPageUrl)
+        {
+            console.log("[WARN] Pagination not found, using homepage");
+            currentPageUrl = SOURCE_URL;
+        }
+        else
+        {
+            console.log(`[SUCCESS] Last page detected: ${currentPageUrl}`);
         }
 
-        const finalFive = collectedArticles.slice(0, 5);
-        console.log(`\n🔄 Processing the final ${finalFive.length} articles...`);
+        while (collectedArticles.length < 5 && currentPageUrl)
+        {
+            console.log(`\n[STEP 3] Scraping page: ${currentPageUrl}`);
+            await page.goto(currentPageUrl, { waitUntil: "networkidle2" });
 
-        for (const article of finalFive) {
-            console.log(`\n📄 Visiting: ${article.title}`);
-            try {
-                await page.goto(article.url, { waitUntil: 'domcontentloaded' });
-                const articleText = await page.evaluate(() => {
-                    return Array.from(document.querySelectorAll('p'))
-                        .map(p => p.innerText)
-                        .filter(text => text.length > 50) 
-                        .join('\n\n');
-                });
+            const html = await page.content();
+            const $ = cheerio.load(html);
 
-                if (!articleText) continue;
+            const articlesOnPage = [];
 
-                await axios.post(API_URL, {
-                    title: article.title,
-                    url: article.url,
-                    original_content: articleText.substring(0, 5000)
-                });
-                console.log(`   ✅ Saved!`);
+            const selector = $("article").length
+                ? "article"
+                : ".blog-card, .post, .entry";
 
-            } catch (err) {
-                 console.log(`   ⚠️ Saved/Skipped.`);
+            $(selector).each((_, element) =>
+            {
+                const title = $(element).find("h2").first().text().trim();
+                const link = $(element).find("a").attr("href");
+
+                if (!title || !link) return;
+                if (title.split(" ").length <= 2) return;
+                if (visitedTitles.has(title)) return;
+
+                visitedTitles.add(title);
+
+                const fullUrl = link.startsWith("http")
+                    ? link
+                    : `https://beyondchats.com${link}`;
+
+                articlesOnPage.push({ title, url: fullUrl });
+            });
+
+            articlesOnPage.reverse();
+            collectedArticles.push(...articlesOnPage);
+
+            console.log(`[INFO] Articles collected so far: ${collectedArticles.length}`);
+
+            if (collectedArticles.length < 5)
+            {
+                const match = currentPageUrl.match(/\/page\/(\d+)/);
+                if (!match) break;
+
+                const pageNumber = Number(match[1]);
+                if (pageNumber <= 1) break;
+
+                currentPageUrl = currentPageUrl.replace(
+                    `/page/${pageNumber}`,
+                    `/page/${pageNumber - 1}`
+                );
+
+                console.log(`[INFO] Moving to previous page`);
             }
         }
 
-    } catch (error) {
-        console.error("Error:", error);
-    } finally {
+        const finalArticles = collectedArticles.slice(0, 5);
+        console.log(`\n[STEP 4] Processing ${finalArticles.length} final articles`);
+
+        for (const article of finalArticles)
+        {
+            console.log(`\n[ARTICLE] Visiting: ${article.title}`);
+
+            try
+            {
+                await page.goto(article.url, { waitUntil: "domcontentloaded" });
+
+                const content = await page.evaluate(() =>
+                {
+                    return Array.from(document.querySelectorAll("p"))
+                        .map(p => p.innerText.trim())
+                        .filter(text => text.length > 50)
+                        .join("\n\n");
+                });
+
+                if (!content)
+                {
+                    console.log("[WARN] No content found, skipping");
+                    continue;
+                }
+
+                console.log("[INFO] Sending article to backend API");
+                await axios.post(API_URL, {
+                    title: article.title,
+                    url: article.url,
+                    original_content: content.substring(0, 5000)
+                });
+
+                console.log("[SUCCESS] Article saved to database");
+            }
+            catch
+            {
+                console.log("[ERROR] Failed to process article");
+            }
+        }
+    }
+    catch (error)
+    {
+        console.error("[FATAL] Scraper crashed:", error.message);
+    }
+    finally
+    {
         await browser.close();
+        console.log("\n[INFO] Browser closed");
+        console.log("\n================ SCRAPER FINISHED ================\n");
     }
 }
 
-scrapeOldest();
+
+scrapeOldestArticles();
+module.exports = { scrapeOldestArticles };
