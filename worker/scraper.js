@@ -1,9 +1,11 @@
 const puppeteer = require("puppeteer");
 const cheerio = require("cheerio");
 const axios = require("axios");
+const dotenv = require("dotenv");
+dotenv.config();
 
 const SOURCE_URL = "https://beyondchats.com/blogs/";
-const API_URL = "http://localhost:5000/api/articles";
+const API_URL = process.env.API_URL;
 
 async function scrapeOldestArticles()
 {
