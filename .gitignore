@@ -17,25 +17,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# ==========================
-# LARAVEL (Backend)
-# ==========================
-/backend/vendor/
-/backend/node_modules/
-/backend/public/build/
-/backend/public/hot
-/backend/public/storage
-/backend/storage/*.key
-/backend/storage/framework/cache/data/*
-/backend/storage/framework/sessions/*
-/backend/storage/framework/testing/*
-/backend/storage/framework/views/*
-/backend/storage/logs/*
-/backend/.phpunit.result.cache
-/backend/.env
-/backend/.env.backup
-/backend/.env.production
-/backend/bootstrap/cache/*
+
 
 # ==========================
 # REACT / VITE (Frontend)
